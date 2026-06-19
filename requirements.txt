@@ -1,0 +1,12 @@
+streamlit
+numpy
+pandas
+matplotlib
+scikit-learn
+folium
+streamlit-folium
+plotly
+Pillow
+seaborn
+earthengine-api
+geemap
