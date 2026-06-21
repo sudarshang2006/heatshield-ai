@@ -15,7 +15,10 @@ try:
 except ImportError:
     REAL_DATA_AVAILABLE = False
 from ml_model import HeatIslandModel
-from recommender import get_recommendation, get_city_action_plan, calculate_total_impact
+from recommender import get_recommendation, get_city_action_plan, calculate_total_impact, simulate_scenario
+from weather_loader import get_live_weather, get_weather_icon_url
+from urban_morphology_loader import get_urban_morphology
+from driver_model import train_driver_model
 
 # ─────────────────────────────────────────────
 # PAGE CONFIG
@@ -89,6 +92,8 @@ with st.sidebar:
     show_map = st.checkbox("🗺️ Show Interactive Map", value=True)
     show_ml = st.checkbox("🤖 Show ML Analysis", value=True)
     show_plan = st.checkbox("📋 Show Action Plan", value=True)
+    show_drivers = st.checkbox("🔬 Show Driver Analysis (LST Model)", value=True,
+                                 help="Trains a physics-informed regression model across all 5 cities. Takes a few seconds.")
 
     st.markdown("---")
     st.markdown("### 🛰️ Data Source")
@@ -140,6 +145,33 @@ with st.spinner("🤖 Training ML model..."):
 
 st.caption(f"Data source: **{data_source_label}**")
 city_info = CITIES[selected_city]
+
+# ─────────────────────────────────────────────
+# LIVE METEOROLOGICAL DATA (OpenWeatherMap)
+# ─────────────────────────────────────────────
+st.markdown("### 🌤️ Live Meteorological Data")
+weather = get_live_weather(selected_city)
+
+if weather["success"]:
+    wcol1, wcol2, wcol3, wcol4, wcol5 = st.columns([1, 1, 1, 1, 1.3])
+    with wcol1:
+        st.metric("🌡️ Live Temperature", f"{weather['temperature']}°C",
+                   delta=f"feels {weather['feels_like']}°C")
+    with wcol2:
+        st.metric("💧 Humidity", f"{weather['humidity']}%")
+    with wcol3:
+        st.metric("💨 Wind Speed", f"{weather['wind_speed']} m/s")
+    with wcol4:
+        st.metric("🔵 Pressure", f"{weather['pressure']} hPa")
+    with wcol5:
+        icon_url = get_weather_icon_url(weather["icon"])
+        st.markdown(f"**Condition:** {weather['condition']}")
+        st.image(icon_url, width=60)
+    st.caption("Live data from OpenWeatherMap — updates each time you reload the page")
+else:
+    st.warning(f"⚠️ Live weather unavailable right now ({weather['error']}). Showing satellite-derived analysis only.")
+
+st.markdown("---")
 
 
 # ─────────────────────────────────────────────
@@ -336,6 +368,57 @@ if show_ml:
     st.plotly_chart(fig_risk, use_container_width=True)
 
 # ─────────────────────────────────────────────
+# DRIVER ANALYSIS — Physics-informed LST regression model
+# ─────────────────────────────────────────────
+if show_drivers:
+    st.markdown("---")
+    st.markdown("### 🔬 Driver Analysis — What Physically Causes Urban Heat?")
+    st.caption(
+        "A Random Forest regression model trained across all 5 cities, using "
+        "physically-meaningful drivers (surface albedo, imperviousness, vegetation, "
+        "building density, humidity) to predict Land Surface Temperature directly — "
+        "going beyond surface classification to model heat dynamics quantitatively."
+    )
+
+    @st.cache_resource(show_spinner=False)
+    def _cached_driver_model():
+        return train_driver_model(grid_size=18)
+
+    with st.spinner("Training physics-informed LST regression model across all cities..."):
+        driver_result = _cached_driver_model()
+
+    dcol1, dcol2, dcol3 = st.columns(3)
+    dcol1.metric("📊 Model R² Score", driver_result["r2"],
+                 help="Fraction of temperature variance explained by the physical drivers (closer to 1.0 = better)")
+    dcol2.metric("📏 RMSE", f"{driver_result['rmse']}°C",
+                 help="Average prediction error in degrees Celsius on held-out test data")
+    dcol3.metric("🗂️ Training Samples", f"{driver_result['n_samples']:,}",
+                 help="Pixel-level samples across all 5 cities used to train and validate the model")
+
+    driver_df = pd.DataFrame({
+        "Driver": list(driver_result["driver_importance"].keys()),
+        "Influence (%)": list(driver_result["driver_importance"].values()),
+    }).sort_values("Influence (%)", ascending=True)
+
+    fig_driver = px.bar(
+        driver_df, x="Influence (%)", y="Driver",
+        orientation="h",
+        title="Quantified Influence of Each Physical Driver on Land Surface Temperature",
+        color="Influence (%)",
+        color_continuous_scale="OrRd",
+        height=320,
+    )
+    st.plotly_chart(fig_driver, use_container_width=True)
+
+    top_driver = driver_df.iloc[-1]
+    st.success(
+        f"🎯 **Key finding:** *{top_driver['Driver']}* is the strongest driver of urban heat "
+        f"across the 5 cities analyzed, accounting for **{top_driver['Influence (%)']}%** of "
+        f"the model's predictive signal — directly informing which intervention type "
+        f"(e.g. cool roofs to raise albedo, greening to lower imperviousness) will be most effective."
+    )
+
+# ─────────────────────────────────────────────
 # ACTION PLAN
 # ─────────────────────────────────────────────
 if show_plan:
@@ -364,6 +447,78 @@ if show_plan:
             st.markdown(f"**💰 Estimated Cost:** {rec['cost']}")
             st.markdown(f"**⏱️ Implementation Time:** {rec['implementation_time']}")
             st.success(f"📡 **ISRO/NASA Reference:** {rec['isro_reference']}")
+
+# ─────────────────────────────────────────────
+# SCENARIO-BASED SIMULATION
+# ─────────────────────────────────────────────
+st.markdown("---")
+st.markdown("### 🎛️ What-If Scenario Simulator")
+st.caption("Move the sliders to simulate real-world interventions and see the projected cooling effect instantly.")
+
+sim_col1, sim_col2 = st.columns([1, 1.3])
+
+with sim_col1:
+    tree_pct = st.slider("🌳 % of bare ground converted to trees/greenery", 0, 100, 0, step=5)
+    roof_pct = st.slider("🏠 % of dark rooftops converted to cool roofs", 0, 100, 0, step=5)
+    pavement_pct = st.slider("🛣️ % of roads converted to reflective pavement", 0, 100, 0, step=5)
+
+    sim_result = simulate_scenario(df, stats["avg_temp"], tree_pct, roof_pct, pavement_pct)
+
+with sim_col2:
+    fig_sim = go.Figure()
+    fig_sim.add_trace(go.Bar(
+        x=["Current Avg Temp", "Projected Avg Temp"],
+        y=[sim_result["current_temp"], sim_result["projected_temp"]],
+        marker_color=["#e74c3c", "#2ecc71"],
+        text=[f"{sim_result['current_temp']}°C", f"{sim_result['projected_temp']}°C"],
+        textposition="outside",
+    ))
+    fig_sim.update_layout(
+        title=f"Projected Impact for {selected_city}",
+        yaxis_title="Temperature (°C)",
+        height=320,
+        showlegend=False,
+    )
+    st.plotly_chart(fig_sim, use_container_width=True)
+
+if sim_result["total_reduction"] > 0:
+    st.success(f"""
+    🎯 **With these interventions:** average temperature drops from
+    **{sim_result['current_temp']}°C → {sim_result['projected_temp']}°C**
+    (a reduction of **{sim_result['total_reduction']}°C**)
+
+    Breakdown: 🌳 Trees: -{sim_result['tree_contribution']}°C |
+    🏠 Cool Roofs: -{sim_result['roof_contribution']}°C |
+    🛣️ Pavement: -{sim_result['pavement_contribution']}°C
+    """)
+else:
+    st.info("👆 Move the sliders above to simulate cooling interventions and see the projected temperature drop.")
+
+# ─────────────────────────────────────────────
+# URBAN MORPHOLOGY (OpenStreetMap)
+# ─────────────────────────────────────────────
+st.markdown("---")
+st.markdown("### 🏙️ Urban Morphology Analysis")
+st.caption("Building density and land-use form data from OpenStreetMap (~4km radius around city center)")
+
+morphology = get_urban_morphology(city_info["lat"], city_info["lon"], city_name=selected_city)
+
+if morphology["success"]:
+    source_label = "🟢 Live from OpenStreetMap" if morphology.get("source") == "live" else "🔵 Cached snapshot (live server busy)"
+    st.caption(f"Data source: {source_label}")
+
+    um1, um2, um3, um4 = st.columns(4)
+    um1.metric("🏢 Buildings", f"{morphology['building_count']:,}")
+    um2.metric("🛣️ Roads", f"{morphology['road_count']:,}")
+    um3.metric("🌳 Green Spaces", f"{morphology['green_space_count']:,}")
+    um4.metric("📊 Density", morphology["density_score"])
+
+    if morphology["density_score"] in ["High", "Very High"]:
+        st.warning(f"⚠️ {selected_city} shows **{morphology['density_score']}** building density — dense urban form traps heat and limits natural cooling. Prioritize vertical greening and cool roofs here.")
+    else:
+        st.success(f"✅ {selected_city} shows **{morphology['density_score']}** building density in this zone — more room for ground-level tree planting.")
+else:
+    st.warning(f"⚠️ Urban morphology data temporarily unavailable ({morphology['error']}). OpenStreetMap's free server can be slow — try refreshing in a moment.")
 
 # ─────────────────────────────────────────────
 # CITY COMPARISON

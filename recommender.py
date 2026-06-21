@@ -96,3 +96,43 @@ def calculate_total_impact(df):
         zone_count = (df["surface_type"] == surface).sum()
         total_reduction += rec["temp_reduction"] * (zone_count / len(df))
     return round(total_reduction, 2)
+
+
+def simulate_scenario(df, current_avg_temp, tree_pct, roof_pct, pavement_pct):
+    """
+    Scenario-based "what-if" simulation.
+
+    The user picks (via sliders):
+      - tree_pct: % of Bare Ground zones converted to trees/greenery
+      - roof_pct: % of Dark Rooftop zones converted to cool roofs
+      - pavement_pct: % of Road/Pavement zones converted to reflective pavement
+
+    Returns a dict with the breakdown of reduction from each
+    intervention and the resulting projected average temperature,
+    so the app can show a clear "before vs after" comparison.
+    """
+    total_zones = len(df)
+
+    bare_ground_frac = (df["surface_type"] == "Bare Ground").sum() / total_zones
+    rooftop_frac = (df["surface_type"] == "Dark Rooftop").sum() / total_zones
+    road_frac = (df["surface_type"] == "Road/Pavement").sum() / total_zones
+
+    tree_reduction = get_recommendation("Bare Ground")["temp_reduction"]
+    roof_reduction = get_recommendation("Dark Rooftop")["temp_reduction"]
+    pavement_reduction = get_recommendation("Road/Pavement")["temp_reduction"]
+
+    tree_contribution = (tree_pct / 100) * bare_ground_frac * tree_reduction
+    roof_contribution = (roof_pct / 100) * rooftop_frac * roof_reduction
+    pavement_contribution = (pavement_pct / 100) * road_frac * pavement_reduction
+
+    total_reduction = tree_contribution + roof_contribution + pavement_contribution
+    projected_temp = current_avg_temp - total_reduction
+
+    return {
+        "tree_contribution": round(tree_contribution, 2),
+        "roof_contribution": round(roof_contribution, 2),
+        "pavement_contribution": round(pavement_contribution, 2),
+        "total_reduction": round(total_reduction, 2),
+        "current_temp": round(current_avg_temp, 2),
+        "projected_temp": round(projected_temp, 2),
+    }
