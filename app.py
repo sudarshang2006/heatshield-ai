@@ -16,7 +16,7 @@ except ImportError:
     REAL_DATA_AVAILABLE = False
 from ml_model import HeatIslandModel
 from recommender import get_recommendation, get_city_action_plan, calculate_total_impact, simulate_scenario
-from weather_loader import get_live_weather, get_weather_icon_url
+from weather_loader import get_weather_data
 from urban_morphology_loader import get_urban_morphology
 from driver_model import train_driver_model
 
