@@ -14,7 +14,7 @@ SETUP REQUIRED:
 import requests
 
 # ⚠️ PASTE YOUR OPENWEATHERMAP API KEY HERE (between the quotes)
-OPENWEATHER_API_KEY = "ebd711a3fc8e6d06e523e67201979d4a"
+    api_key = "YOUR_API_KEY_HERE"
 
 # City coordinates (same as data_loader.py, kept here too so this
 # module works independently)
