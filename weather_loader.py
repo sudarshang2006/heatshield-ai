@@ -8,13 +8,17 @@ This covers the "Meteorological Data Integration" requirement
 
 SETUP REQUIRED:
     Get a free API key from https://openweathermap.org/api
-    Paste it into OPENWEATHER_API_KEY below.
+  Paste it into OPENWEATHER_API_KEY below.
 """
 
 import requests
 
 # ⚠️ PASTE YOUR OPENWEATHERMAP API KEY HERE (between the quotes)
-    api_key = "YOUR_API_KEY_HERE"
+   import os
+from dotenv import load_dotenv
+
+load_dotenv()
+api_key = os.getenv("OPENWEATHER_API_KEY")
 
 # City coordinates (same as data_loader.py, kept here too so this
 # module works independently)
