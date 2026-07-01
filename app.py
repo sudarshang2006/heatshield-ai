@@ -29,12 +29,17 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # ─────────────────────────────────────────────
 # CUSTOM CSS
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Poppins', sans-serif;
+    }
+
     .main-header {
         font-size: 2.8rem;
         font-weight: 800;
@@ -51,24 +56,62 @@ st.markdown("""
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 1rem;
-        border-radius: 12px;
+        border-radius: 16px;
         color: white;
         text-align: center;
         margin: 0.3rem;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.12);
     }
     .critical-card {
         background: linear-gradient(135deg, #f93154 0%, #ff6b6b 100%);
         padding: 0.8rem;
-        border-radius: 10px;
+        border-radius: 14px;
         color: white;
     }
     .success-card {
         background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
         padding: 0.8rem;
-        border-radius: 10px;
+        border-radius: 14px;
         color: white;
     }
-    .stAlert { border-radius: 10px; }
+
+    /* Rounded metric cards with soft shadow */
+    div[data-testid="stMetric"] {
+        background: #ffffff;
+        padding: 1.1rem 1rem;
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        border: 1px solid rgba(0,0,0,0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    }
+
+    /* Rounded alerts */
+    .stAlert {
+        border-radius: 14px !important;
+    }
+
+    /* Rounded expanders */
+    div[data-testid="stExpander"] {
+        border-radius: 14px !important;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+
+    /* Rounded dataframe */
+    div[data-testid="stDataFrame"] {
+        border-radius: 14px !important;
+        overflow: hidden;
+    }
+
+    /* Rounded buttons */
+    .stButton button {
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
